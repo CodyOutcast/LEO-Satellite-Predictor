@@ -29,6 +29,18 @@ def _load_jsonl(path: Path) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _write_plot_data(output_dir: Path, baseline: pd.DataFrame, grouped: pd.DataFrame) -> Path:
+    payload = {
+        "eval_overview": baseline.to_dict(orient="records"),
+        "robustness_sweep": grouped.to_dict(orient="records"),
+    }
+    out_path = output_dir / "plot_results_data.json"
+    with out_path.open("w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+    print(f"wrote {out_path}")
+    return out_path
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Plot evaluation results")
     parser.add_argument(
@@ -64,6 +76,7 @@ def main() -> None:
     baseline["label"] = baseline["controller"] + " | " + baseline["predictor"]
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    _write_plot_data(args.output_dir, baseline, grouped)
 
     fig, axes = plt.subplots(2, 2, figsize=(13, 8))
     axes = axes.reshape(-1)

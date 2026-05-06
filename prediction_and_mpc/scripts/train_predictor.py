@@ -32,11 +32,11 @@ def make_builder(seed: int, t_end_s: float) -> GraphBuilder:
     cfg = GraphBuilderConfig(
         sim=SimConfig(dt_s=2.0, t_end_s=t_end_s, seed=seed),
         constellation=ConstellationConfig(
-            num_planes=3,
-            sats_per_plane=8,
+            num_planes=6,
+            sats_per_plane=12,
             altitude_m=550_000.0,
             inclination_deg=53.0,
-            phase_offset_deg=10.0,
+            phase_offset_deg=5.0,
         ),
         ground_stations=[
             GroundStation("SF", 37.7749, -122.4194, 0.0),
@@ -44,11 +44,11 @@ def make_builder(seed: int, t_end_s: float) -> GraphBuilder:
             GroundStation("LON", 51.5072, -0.1276, 0.0),
         ],
         links=LinkConstraints(
-            theta_min_deg=10.0,
-            isl_range_max_m=6_000_000.0,
-            earth_occlusion=True,
+            theta_min_deg=5.0,
+            isl_range_max_m=8_000_000.0,
+            earth_occlusion=False,
             occlusion_margin_m=1.0,
-            isl_mode="neighbor",
+            isl_mode="all_within_range",
         ),
         link_model=LinkModelConfig(
             snr_ref_db=22.0,

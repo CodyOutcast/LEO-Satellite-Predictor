@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 import sys
+import time
 
 PKG_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -38,11 +39,11 @@ def make_builder(seed: int, *, t_end_s: float) -> GraphBuilder:
     cfg = GraphBuilderConfig(
         sim=SimConfig(dt_s=2.0, t_end_s=t_end_s, seed=seed),
         constellation=ConstellationConfig(
-            num_planes=3,
-            sats_per_plane=8,
+            num_planes=6,
+            sats_per_plane=12,
             altitude_m=550_000.0,
             inclination_deg=53.0,
-            phase_offset_deg=10.0,
+            phase_offset_deg=5.0,
         ),
         ground_stations=[
             GroundStation("SF", 37.7749, -122.4194, 0.0),
@@ -50,8 +51,8 @@ def make_builder(seed: int, *, t_end_s: float) -> GraphBuilder:
             GroundStation("LON", 51.5072, -0.1276, 0.0),
         ],
         links=LinkConstraints(
-            theta_min_deg=10.0,
-            isl_range_max_m=6_000_000.0,
+            theta_min_deg=5.0,
+            isl_range_max_m=8_000_000.0,
             earth_occlusion=True,
             occlusion_margin_m=1.0,
             isl_mode="neighbor",
@@ -74,7 +75,7 @@ def _ensure_model(path: Path, *, seed: int) -> Path:
     if path.exists():
         return path
 
-    trainer = make_builder(seed, t_end_s=2_000.0)
+    trainer = make_builder(seed, t_end_s=3_000.0)
     telemetry = generate_telemetry(trainer, 0, 800)
     _, metrics = train_learned_sysid(telemetry, save_path=path, model_kind="mlp", random_state=seed)
     print(f"trained fallback model at {path} (mae_test_db={metrics['mae_test_db']:.4f})")
@@ -112,6 +113,9 @@ def main() -> None:
     learned_model = load_learned_sysid(model_path)
 
     rows: list[dict] = []
+    total_runs = len(seeds) * len(error_rates) * 2 * 2
+    completed_runs = 0
+    started_at = time.perf_counter()
 
     for seed in seeds:
         builder = make_builder(seed, t_end_s=float(steps * 2 + 2))
@@ -152,6 +156,25 @@ def main() -> None:
                 }
 
                 for controller_name, controller in controllers.items():
+                    run_started_at = time.perf_counter()
+                    completed_runs += 1
+                    elapsed_before_run = run_started_at - started_at
+                    avg_seconds_per_run = elapsed_before_run / float(completed_runs - 1) if completed_runs > 1 else 0.0
+                    remaining_runs = total_runs - completed_runs
+                    eta_seconds = avg_seconds_per_run * remaining_runs
+
+                    print(
+                        "[{}/{}] seed={} error_rate={} predictor={} controller={} eta_min={:.1f}".format(
+                            completed_runs,
+                            total_runs,
+                            seed,
+                            error_rate,
+                            predictor_name,
+                            controller_name,
+                            eta_seconds / 60.0,
+                        )
+                    )
+
                     runner = SimulationRunner(builder, controller, flows)
                     records = runner.run(t_start=0, t_end=steps)
 
@@ -181,6 +204,19 @@ def main() -> None:
                                 "num_records": int(len(records)),
                             }
                         )
+
+                    run_elapsed = time.perf_counter() - run_started_at
+                    total_elapsed = time.perf_counter() - started_at
+                    print(
+                        "completed seed={} error_rate={} predictor={} controller={} in {:.1f}s total_elapsed_min={:.1f}".format(
+                            seed,
+                            error_rate,
+                            predictor_name,
+                            controller_name,
+                            run_elapsed,
+                            total_elapsed / 60.0,
+                        )
+                    )
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("w", encoding="utf-8") as f:
