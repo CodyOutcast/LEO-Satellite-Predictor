@@ -137,3 +137,20 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Local assistant/tooling state
+.claude/
+
+# Python virtual environments and caches
+.venv/
+**/.venv/
+.pytest_cache/
+**/.pytest_cache/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+
+# Project-generated artifacts
+graph_constructor_and_link_model/outputs/
+prediction_and_mpc/outputs/
+prediction_and_mpc/checkpoints/
