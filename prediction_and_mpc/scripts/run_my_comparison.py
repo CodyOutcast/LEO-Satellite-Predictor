@@ -29,8 +29,9 @@ def run_and_save():
     }
 
     rows = []
+    print(f"{'Name':<25} | {'outrage':<8} | {'P50 latency(s)':<10} |{'P95 latency(s)':<10} | {'handover rate(per minute)'}")
     for name, controller in test_suite.items():
-        print(f"running: {name}...")
+        #print(f"running: {name}...")
         runner = SimulationRunner(builder, controller, DEFAULT_FLOWS)
         records = runner.run(t_start=0, t_end=steps)
         outage_dict = outage_probability(records, by_flow=True)
@@ -39,8 +40,9 @@ def run_and_save():
         flow_name = DEFAULT_FLOWS[0].name
         val_outage = outage_dict.get(flow_name, 0.0)
         val_p50 = latency_dict.get(flow_name, {}).get(50, 0.0)
+        val_p95 = latency_dict.get(flow_name, {}).get(95, 0.0)
         val_h_rate = handover_dict.get(flow_name, {}).get("handover_rate_per_min", 0.0)
-        print(f"{name:<25} | {val_outage:>8.2%} | {val_p50:>10.4f} | {val_h_rate:>12.2f}")
+        print(f"{name:<25} | {val_outage:>8.2%} | {val_p50:>10.4f} |{val_p95:>10.4f} | {val_h_rate:>12.2f}")
 
         for flow in DEFAULT_FLOWS:
             f_name = flow.name
@@ -67,7 +69,7 @@ def run_and_save():
             f.write(json.dumps(row) + "\n")
 
     print(f"\nResults saved to: {output_path}")
-    print("use python scripts/plot_results.py --input outputs/my_eval_records.jsonl to see the visulaized result")
+    print("use python LEO-Satellite-Predictor-main/prediction_and_mpc/scripts/plot_results.py --input LEO-Satellite-Predictor-main/prediction_and_mpc/outputs/my_eval_records.jsonl to see the visulaized result")
 
 
 if __name__ == "__main__":
