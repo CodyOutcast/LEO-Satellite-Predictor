@@ -116,6 +116,17 @@ automatically before running the sweep.
 Raw results are written to:
 - `prediction_and_mpc/outputs/eval_records.jsonl`
 
+## Running Custom Baseline Comparisons
+
+We have added specialized baseline controllers to evaluate the trade-offs between performance and stability. You can run these comparisons using the dedicated evaluation script.
+
+### 1. Run the Simulation
+Execute the comparison script from the project root. This script evaluates the `RollingReplanMPC`, `ReactiveBaseline`, and `GreedyHandover` controllers:
+
+```powershell
+python -m scripts.run_my_comparison
+```
+
 Each result row corresponds to one combination of:
 - seed
 - flow
