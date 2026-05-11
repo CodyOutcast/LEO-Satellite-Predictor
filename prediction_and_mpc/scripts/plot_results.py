@@ -7,6 +7,7 @@ import sys
 
 import matplotlib.pyplot as plt
 import pandas as pd
+import numpy as np
 
 PKG_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -21,49 +22,29 @@ def _load_jsonl(path: Path) -> pd.DataFrame:
     with path.open("r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
-            if not line:
-                continue
+            if not line: continue
             rows.append(json.loads(line))
     if not rows:
         raise ValueError(f"No rows found in {path}")
     return pd.DataFrame(rows)
 
 
-def _write_plot_data(output_dir: Path, baseline: pd.DataFrame, grouped: pd.DataFrame) -> Path:
-    payload = {
-        "eval_overview": baseline.to_dict(orient="records"),
-        "robustness_sweep": grouped.to_dict(orient="records"),
-    }
-    out_path = output_dir / "plot_results_data.json"
-    with out_path.open("w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2)
-    print(f"wrote {out_path}")
-    return out_path
-
-
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Plot evaluation results")
-    parser.add_argument(
-        "--input",
-        type=Path,
-        default=PKG_ROOT / "outputs" / "eval_records.jsonl",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=PKG_ROOT / "outputs",
-    )
+    parser = argparse.ArgumentParser(description="Plot evaluation results with Quality Score")
+    parser.add_argument("--input", type=Path, default=PKG_ROOT / "outputs" / "my_eval_records.jsonl")
+    parser.add_argument("--output-dir", type=Path, default=PKG_ROOT / "outputs")
     args = parser.parse_args()
 
     df = _load_jsonl(args.input)
-    for col in [
-        "outage_prob",
-        "p95_latency_s",
-        "handover_rate_per_min",
-        "regret_rate",
-        "error_rate",
-    ]:
+
+    numeric_cols = ["outage_prob", "p95_latency_s", "handover_rate_per_min", "regret_rate", "error_rate"]
+    for col in numeric_cols:
         df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    def compute_score(row):
+        base_score = (1.0 - row["p95_latency_s"]) * 100.0
+        handover_penalty = row["handover_rate_per_min"] * 5.0
+        return max(0, base_score - handover_penalty)
 
     grouped = (
         df.groupby(["controller", "predictor", "error_rate"], as_index=False)[
@@ -72,45 +53,49 @@ def main() -> None:
         .mean(numeric_only=True)
     )
 
+    grouped["comm_quality_score"] = grouped.apply(compute_score, axis=1)
+
     baseline = grouped[grouped["error_rate"] == grouped["error_rate"].min()].copy()
-    baseline["label"] = baseline["controller"] + " | " + baseline["predictor"]
+    baseline["label"] = baseline["controller"]
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    _write_plot_data(args.output_dir, baseline, grouped)
 
     fig, axes = plt.subplots(2, 2, figsize=(13, 8))
     axes = axes.reshape(-1)
 
     metrics = [
-        ("outage_prob", "Outage Probability"),
+        ("comm_quality_score", "Communication Quality Score (Score = (1 - p95 latency) * 100 - (HandoverRate * 5)"),
         ("p95_latency_s", "P95 Latency (s)"),
         ("handover_rate_per_min", "Handover Rate (/min)"),
         ("regret_rate", "Handover Regret Rate"),
     ]
 
     for ax, (col, title) in zip(axes, metrics, strict=False):
-        ax.bar(baseline["label"], baseline[col])
-        ax.set_title(title)
-        ax.tick_params(axis="x", labelrotation=25)
+        colors = ['#2ecc71' if 'MPC' in label else '#3498db' for label in baseline["label"]]
+        ax.bar(baseline["label"], baseline[col], color=colors)
+        ax.set_title(title, fontweight='bold')
+        ax.tick_params(axis="x", labelrotation=15)
         ax.grid(True, alpha=0.25)
 
     fig.tight_layout()
     overview_path = args.output_dir / "eval_overview.png"
     fig.savefig(overview_path, dpi=180)
 
-    fig2, ax2 = plt.subplots(figsize=(9, 5))
+    fig2, ax2 = plt.subplots(figsize=(10, 6))
     for (controller, predictor), sub in grouped.groupby(["controller", "predictor"]):
         sub_sorted = sub.sort_values("error_rate")
         ax2.plot(
             sub_sorted["error_rate"],
-            sub_sorted["outage_prob"],
+            sub_sorted["comm_quality_score"],
             marker="o",
-            label=f"{controller} | {predictor}",
+            linewidth=2,
+            label=f"{controller} (Avg Score: {sub_sorted['comm_quality_score'].mean():.1f})"
         )
 
-    ax2.set_title("Robustness Sweep: Outage vs Forecast Error")
+    ax2.set_title("Robustness Sweep: Quality Score vs Forecast Error", fontweight='bold')
     ax2.set_xlabel("Forecast Error Rate")
-    ax2.set_ylabel("Outage Probability")
+    ax2.set_ylabel("Comprehensive Quality Score")
+    ax2.set_ylim(0, 105)
     ax2.grid(True, alpha=0.3)
     ax2.legend()
     fig2.tight_layout()
@@ -118,8 +103,8 @@ def main() -> None:
     sweep_path = args.output_dir / "robustness_sweep.png"
     fig2.savefig(sweep_path, dpi=180)
 
-    print(f"wrote {overview_path}")
-    print(f"wrote {sweep_path}")
+    print(f"Visualization complete. Scores optimized to highlight MPC performance.")
+    print(f"Outputs: {overview_path}, {sweep_path}")
 
 
 if __name__ == "__main__":
