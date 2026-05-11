@@ -124,11 +124,11 @@ We have added specialized baseline controllers to evaluate the trade-offs betwee
 Execute the comparison script from the project root. This script evaluates the `RollingReplanMPC`, `ReactiveBaseline`, and `GreedyHandover` controllers:
 
 ```powershell
-python -m scripts.run_my_comparison
+python prediction_and_mpc/scripts/run_my_comparison.py、
 ```
 Quick sweep
 ```powershell
-python -m scripts.run_my_comparison --quick
+python prediction_and_mpc/scripts/run_my_comparison.py --quick
 ```
 Each result row corresponds to one combination of:
 - seed
