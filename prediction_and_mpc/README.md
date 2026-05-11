@@ -126,7 +126,10 @@ Execute the comparison script from the project root. This script evaluates the `
 ```powershell
 python -m scripts.run_my_comparison
 ```
-
+Quick sweep
+```powershell
+python -m scripts.run_my_comparison --quick
+```
 Each result row corresponds to one combination of:
 - seed
 - flow
